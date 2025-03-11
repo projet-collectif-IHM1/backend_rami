@@ -1,11 +1,8 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
-from motor.motor_asyncio import AsyncIOMotorClient  # Importation correcte
-
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from motor.motor_asyncio import AsyncIOMotorClient
-from typing import List
+from bson import ObjectId  # Pour travailler avec ObjectId
+from typing import List, Optional
 
 app = FastAPI()
 
@@ -21,20 +18,21 @@ class User(BaseModel):
     password: str
     role :str
 
-class Hotel(BaseModel):
-    nomHotel: str
-    imageHotel: str
-    adresse: str
-    classement: int
-
 class Chambre(BaseModel):
     typeChambre: str
     imageChambre: str
+    hotel_id: str
+
+class Hotel(BaseModel):
+   nomHotel: str
+   imageHotel: str
+   adresse: str
+   classement: int
+   chambres: Optional[List[Chambre]] = [] 
 
 class Offre(BaseModel):
     prixParNuit: float
     promotion: float
-
 
 class Reservation(BaseModel):
     dateReservation: str
@@ -75,10 +73,33 @@ async def get_hotels():
     hotels = await db.hotels.find().to_list(100)
     return hotels
 
+@app.get("/hotels/{hotel_id}/", response_model=Hotel)
+async def get_hotel_with_chambres(hotel_id: str):
+    hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})  # Utilisation de ObjectId pour la recherche
+    if hotel:
+        chambres = await db.chambres.find({"hotel_id": hotel_id}).to_list(100)
+        hotel["chambres"] = chambres
+        return hotel
+    raise HTTPException(status_code=404, detail="Hotel not found")
+
 # Chambres
 @app.post("/chambres/", response_model=dict)
 async def create_chambre(chambre: Chambre):
+    # Convertir l'ID de l'hôtel en ObjectId
+    hotel_id = chambre.hotel_id
+    hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})
+
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hotel not found")
+    
+    # Insère la chambre dans la collection 'chambres'
     result = await db.chambres.insert_one(chambre.dict())
+
+    # Met à jour l'hôtel pour inclure la nouvelle chambre
+    update_result = await db.hotels.update_one(
+        {"_id": ObjectId(hotel_id)},
+        {"$push": {"chambres": chambre.dict()}}
+    )
     return {"id": str(result.inserted_id)}
 
 @app.get("/chambres/", response_model=List[Chambre])
@@ -117,4 +138,4 @@ async def create_avis(avis: Avis):
 @app.get("/avis/", response_model=List[Avis])
 async def get_avis():
     avis = await db.avis.find().to_list(100)
-    return avis 
+    return avis
