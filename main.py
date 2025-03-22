@@ -49,6 +49,7 @@ class Avis(BaseModel):
     note: int
     commentaire: str
     dateAvis: str
+    user_id : str
 
 # Routes CRUD
 # Users
@@ -130,8 +131,12 @@ async def get_reservations():
     return reservations
 
 # Avis
+# Avis
 @app.post("/avis/", response_model=dict)
 async def create_avis(avis: Avis):
+    user = await db.users.find_one({"_id": ObjectId(avis.user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     result = await db.avis.insert_one(avis.dict())
     return {"id": str(result.inserted_id)}
 
