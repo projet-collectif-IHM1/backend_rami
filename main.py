@@ -158,7 +158,7 @@ async def get_hotels():
 
 
 
-@app.get("/hotels/{hotel_id}/", response_model=Hotel)
+@app.get("/hotels/{hotel_id}", response_model=Hotel)
 async def get_hotel_with_chambres(hotel_id: str):
     hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})  # Utilisation de ObjectId pour la recherche
     if hotel:
