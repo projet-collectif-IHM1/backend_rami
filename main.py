@@ -4,6 +4,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId  # Pour travailler avec ObjectId
 from typing import List, Optional
 
+# Middleware CORS pour permettre l'accès depuis Angular (http://localhost:4200)
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI()
 
 # Connexion MongoDB
@@ -23,6 +26,10 @@ class Chambre(BaseModel):
     imageChambre: List[str]
     hotel_id: str
     
+class Offre(BaseModel):
+    prixParNuit: float
+    promotion: float
+    hotel_id:str
 
 class Hotel(BaseModel):
     nomHotel: str
@@ -32,12 +39,10 @@ class Hotel(BaseModel):
     chambres: Optional[List[Chambre]] = []
     description:List[str]
     paye_id: str
+    offre: Optional[List[Offre]] = []
     
 
-class Offre(BaseModel):
-    prixParNuit: float
-    promotion: float
-    hotel_id:str
+
 class Avis(BaseModel):
     note: int
     commentaire: str
@@ -66,8 +71,6 @@ class Paye(BaseModel):
     
 
 
-# Middleware CORS pour permettre l'accès depuis Angular (http://localhost:4200)
-from fastapi.middleware.cors import CORSMiddleware
 
 origins = [
     "http://localhost:4200",  # URL de votre application Angular
@@ -219,6 +222,11 @@ async def create_offre(offre: Offre):
     if not hotel:
         raise HTTPException(status_code=404, detail="hotel not found")
     result = await db.offres.insert_one(offre.dict())
+    
+    update_result = await db.hotels.update_one(
+        {"_id": ObjectId(offre)},
+        {"$push": {"offre": offre.dict()}}
+    )
     return {"id": str(result.inserted_id)}
 
 @app.get("/offres/", response_model=List[Offre])
