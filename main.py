@@ -120,6 +120,7 @@ async def create_paye(paye: Paye):
     result = await db.payes.insert_one(paye.dict())
     return {"id": str(result.inserted_id)}
 
+
 @app.get("/payes/", response_model=List[Paye])
 async def get_payes():
     payes = await db.payes.find().to_list(100)
@@ -149,10 +150,13 @@ async def create_hotel(hotel: Hotel):
     result = await db.hotels.insert_one(hotel.dict())
     return {"id": str(result.inserted_id)}
 
+
 @app.get("/hotels/", response_model=List[Hotel])
 async def get_hotels():
     hotels = await db.hotels.find().to_list(100)
     return hotels
+
+
 
 @app.get("/hotels/{hotel_id}/", response_model=Hotel)
 async def get_hotel_with_chambres(hotel_id: str):
@@ -199,6 +203,9 @@ async def create_chambre(chambre: Chambre):
 async def get_chambres():
     chambres = await db.chambres.find().to_list(100)
     return chambres
+
+
+
 @app.put("/chambres/{chambre_id}", response_model=dict)
 async def update_chambre(chambre_id: str, chambre: Chambre):
     result = await db.chambres.update_one({"_id": get_objectid(chambre_id)}, {"$set": chambre.dict()})
@@ -220,13 +227,15 @@ async def delete_chambre(chambre_id: str):
 async def create_offre(offre: Offre):
     hotel = await db.hotels.find_one({"_id": ObjectId(offre.hotel_id)})
     if not hotel:
-        raise HTTPException(status_code=404, detail="hotel not found")
-    result = await db.offres.insert_one(offre.dict())
+        raise HTTPException(status_code=404, detail="Hotel not found")
+
+    result = await db.offres.insert_one(offre.model_dump())
     
-    update_result = await db.hotels.update_one(
-        {"_id": ObjectId(offre)},
-        {"$push": {"offre": offre.dict()}}
+    await db.hotels.update_one(
+        {"_id": ObjectId(offre.hotel_id)},
+        {"$push": {"offre": offre.model_dump()}}
     )
+
     return {"id": str(result.inserted_id)}
 
 @app.get("/offres/", response_model=List[Offre])
