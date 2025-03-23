@@ -37,6 +37,12 @@ class Hotel(BaseModel):
 class Offre(BaseModel):
     prixParNuit: float
     promotion: float
+    hotel_id:str
+class Avis(BaseModel):
+    note: int
+    commentaire: str
+    dateAvis: str
+    user_id: str
 
 class Reservation(BaseModel):
     dateReservation: str
@@ -48,12 +54,10 @@ class Reservation(BaseModel):
     dateRetour: str
     typeReservation: str
     prix: float
+    offre_id:str
+    avis_id:Optional[List[Avis]] = []
 
-class Avis(BaseModel):
-    note: int
-    commentaire: str
-    dateAvis: str
-    user_id: str
+
 
 class Paye(BaseModel):
     nompaye: str
@@ -206,9 +210,14 @@ async def delete_chambre(chambre_id: str):
         raise HTTPException(status_code=404, detail="Chambre not found")
     return {"message": "Chambre deleted successfully"}
 
+
+
 # Offres
 @app.post("/offres/", response_model=dict)
 async def create_offre(offre: Offre):
+    hotel = await db.hotels.find_one({"_id": ObjectId(offre.hotel_id)})
+    if not hotel:
+        raise HTTPException(status_code=404, detail="hotel not found")
     result = await db.offres.insert_one(offre.dict())
     return {"id": str(result.inserted_id)}
 
@@ -235,6 +244,9 @@ async def delete_offre(offre_id: str):
 # Réservations
 @app.post("/reservations/", response_model=dict)
 async def create_reservation(reservation: Reservation):
+    reservation = await db.offres.find_one({"_id": ObjectId(reservation.offre_id)})
+    if not reservation :
+        raise HTTPException(status_code=404, detail="offre not found")
     result = await db.reservations.insert_one(reservation.dict())
     return {"id": str(result.inserted_id)}
 
@@ -257,14 +269,26 @@ async def delete_reservation(reservation_id: str):
         raise HTTPException(status_code=404, detail="Reservation not found")
     return {"message": "Reservation deleted successfully"}
 
-# Avis
+
 @app.post("/avis/", response_model=dict)
-async def create_avis(avis: Avis):
+async def create_avis(avis: Avis, reservation_id: str):
+    # Vérifier si l'utilisateur existe
     user = await db.users.find_one({"_id": ObjectId(avis.user_id)})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    # Insérer l'avis dans la base de données
     result = await db.avis.insert_one(avis.dict())
-    return {"id": str(result.inserted_id)}
+    avis_id = str(result.inserted_id)
+
+    # Mettre à jour la réservation pour ajouter l'ID de l'avis
+    update_result = await db.reservations.update_one(
+        {"_id": ObjectId(reservation_id)},
+        {"$push": {"avis_id": avis_id}}  # Ajoute l'ID de l'avis à la liste
+    )
+
+    return {"id": avis_id, "message": "Avis ajouté avec succès à la réservation"}
+
 
 @app.get("/avis/", response_model=List[Avis])
 async def get_avis():
