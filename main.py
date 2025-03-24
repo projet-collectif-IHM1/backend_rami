@@ -1,12 +1,14 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel,Field
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId  # Pour travailler avec ObjectId
 from typing import List, Optional
+from fastapi.responses import JSONResponse
+from fastapi.encoders import jsonable_encoder
+
 
 # Middleware CORS pour permettre l'accès depuis Angular (http://localhost:4200)
 from fastapi.middleware.cors import CORSMiddleware
-
 
 app = FastAPI()
 
@@ -33,6 +35,7 @@ class Offre(BaseModel):
     hotel_id:str
 
 class Hotel(BaseModel):
+    id: Optional[str] = Field(None, alias="_id") 
     nomHotel: str
     imageHotel:List[str]
     adresse: str
@@ -151,18 +154,17 @@ async def create_hotel(hotel: Hotel):
     result = await db.hotels.insert_one(hotel.dict())
     return {"id": str(result.inserted_id)}
 
-
-
-
-
 @app.get("/hotels/", response_model=List[Hotel])
 async def get_hotels():
     hotels = await db.hotels.find().to_list(100)
-    # Ajouter un champ 'id' à chaque hôtel tout en gardant '_id' comme ObjectId
+    
+    # Convertir _id en string et l'ajouter en tant que 'id'
     for hotel in hotels:
-        hotel['_id'] = str(hotel['_id'])  # Conversion de l'ObjectId en chaîne de caractères
-        del hotel['_id']  # Optionnel : si vous voulez supprimer l'_id original pour ne garder que 'id'
-    return hotels
+        hotel["id"] = str(hotel["_id"])
+        del hotel["_id"]  # Supprimer _id original si nécessaire
+    return JSONResponse(status_code=200, content={"status_code": 200, "hotels": hotels})
+
+
 
 @app.put("/hotels/{hotel_id}", response_model=dict)
 async def update_hotel(hotel_id: str, hotel: Hotel):
