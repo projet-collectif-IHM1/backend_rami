@@ -286,11 +286,15 @@ async def delete_offre(offre_id: str):
 # Réservations
 @app.post("/reservations/", response_model=dict)
 async def create_reservation(reservation: Reservation):
-    reservation = await db.offres.find_one({"_id": ObjectId(reservation.offre_id)})
-    if not reservation :
-        raise HTTPException(status_code=404, detail="offre not found")
+    # Vérification si l'Offre existe
+    offre = await db.offres.find_one({"_id": ObjectId(reservation.offre_id)})
+    if not offre:
+        raise HTTPException(status_code=404, detail="Offre not found")
+    
+    # Créer la réservation
     result = await db.reservations.insert_one(reservation.dict())
-    return {"id": str(result.inserted_id)}
+    return {"id": str(result.inserted_id)}  # Retourner l'ID de la réservation ajoutée
+
 
 @app.get("/reservations/", response_model=List[Reservation])
 async def get_reservations():
