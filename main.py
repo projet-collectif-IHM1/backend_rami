@@ -27,6 +27,7 @@ class User(BaseModel):
 class Chambre(BaseModel):
     typeChambre: str
     imageChambre: List[str]
+    prixchambre:float
     hotel_id: str
     
 class Offre(BaseModel):
