@@ -35,7 +35,6 @@ class Offre(BaseModel):
     hotel_id:str
 
 class Hotel(BaseModel):
-    id: Optional[str] = Field(None, alias="_id") 
     nomHotel: str
     imageHotel:List[str]
     adresse: str
@@ -104,7 +103,14 @@ async def create_user(user: User):
 @app.get("/users/", response_model=List[User])
 async def get_users():
     users = await db.users.find().to_list(100)
-    return users
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for user in users:
+        user["id"] = str(user["_id"])
+        del user["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "users": users})
+
 @app.put("/users/{user_id}", response_model=dict)
 async def update_user(user_id: str, user: User):
     result = await db.users.update_one({"_id": get_objectid(user_id)}, {"$set": user.dict()})
@@ -119,10 +125,17 @@ async def delete_user(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User deleted successfully"}
 
-@app.post("/payes/", response_model=dict)
-async def create_paye(paye: Paye):
-    result = await db.payes.insert_one(paye.dict())
-    return {"id": str(result.inserted_id)}
+@app.get("/payes/", response_model=List[Paye])
+async def get_payes():
+    payes = await db.payes.find().to_list(100)
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for paye in payes:
+        paye["id"] = str(paye["_id"])
+        del paye["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "payes": payes})
+
 
 
 @app.get("/payes/", response_model=List[Paye])
@@ -201,7 +214,14 @@ async def create_chambre(chambre: Chambre):
 @app.get("/chambres/", response_model=List[Chambre])
 async def get_chambres():
     chambres = await db.chambres.find().to_list(100)
-    return chambres
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for chambre in chambres:
+        chambre["id"] = str(chambre["_id"])
+        del chambre["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "chambres": chambres})
+
 
 
 
@@ -240,7 +260,14 @@ async def create_offre(offre: Offre):
 @app.get("/offres/", response_model=List[Offre])
 async def get_offres():
     offres = await db.offres.find().to_list(100)
-    return offres
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for offre in offres:
+        offre["id"] = str(offre["_id"])
+        del offre["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "offres": offres})
+
 
 @app.put("/offres/{offre_id}", response_model=dict)
 async def update_offre(offre_id: str, offre: Offre):
@@ -269,7 +296,14 @@ async def create_reservation(reservation: Reservation):
 @app.get("/reservations/", response_model=List[Reservation])
 async def get_reservations():
     reservations = await db.reservations.find().to_list(100)
-    return reservations
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for reservation in reservations:
+        reservation["id"] = str(reservation["_id"])
+        del reservation["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "reservations": reservations})
+
 
 @app.put("/reservations/{reservation_id}", response_model=dict)
 async def update_reservation(reservation_id: str, reservation: Reservation):
@@ -309,7 +343,14 @@ async def create_avis(avis: Avis, reservation_id: str):
 @app.get("/avis/", response_model=List[Avis])
 async def get_avis():
     avis = await db.avis.find().to_list(100)
-    return avis
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for a in avis:
+        a["id"] = str(a["_id"])
+        del a["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "avis": avis})
+
 @app.put("/avis/{avis_id}", response_model=dict)
 async def update_avis(avis_id: str, avis: Avis):
     result = await db.avis.update_one({"_id": get_objectid(avis_id)}, {"$set": avis.dict()})
