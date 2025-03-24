@@ -7,6 +7,7 @@ from typing import List, Optional
 # Middleware CORS pour permettre l'accès depuis Angular (http://localhost:4200)
 from fastapi.middleware.cors import CORSMiddleware
 
+
 app = FastAPI()
 
 # Connexion MongoDB
@@ -151,21 +152,17 @@ async def create_hotel(hotel: Hotel):
     return {"id": str(result.inserted_id)}
 
 
+
+
+
 @app.get("/hotels/", response_model=List[Hotel])
 async def get_hotels():
     hotels = await db.hotels.find().to_list(100)
+    # Ajouter un champ 'id' à chaque hôtel tout en gardant '_id' comme ObjectId
+    for hotel in hotels:
+        hotel['_id'] = str(hotel['_id'])  # Conversion de l'ObjectId en chaîne de caractères
+        del hotel['_id']  # Optionnel : si vous voulez supprimer l'_id original pour ne garder que 'id'
     return hotels
-
-
-
-@app.get("/hotels/{hotel_id}", response_model=Hotel)
-async def get_hotel_with_chambres(hotel_id: str):
-    hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})  # Utilisation de ObjectId pour la recherche
-    if hotel:
-        chambres = await db.chambres.find({"hotel_id": hotel_id}).to_list(100)
-        hotel["chambres"] = chambres
-        return hotel
-    raise HTTPException(status_code=404, detail="Hotel not found")
 
 @app.put("/hotels/{hotel_id}", response_model=dict)
 async def update_hotel(hotel_id: str, hotel: Hotel):
