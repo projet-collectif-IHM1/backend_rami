@@ -136,12 +136,11 @@ async def get_payes():
 
     return JSONResponse(status_code=200, content={"status_code": 200, "payes": payes})
 
-
-
-@app.get("/payes/", response_model=List[Paye])
-async def get_payes():
-    payes = await db.payes.find().to_list(100)
-    return payes
+# Payes
+@app.post("/payes/", response_model=dict)
+async def create_paye(paye: Paye):
+    result = await db.payes.insert_one(paye.dict())
+    return {"id": str(result.inserted_id)}  # Retourner l'ID de la paye ajoutée
 
 @app.put("/payes/{paye_id}", response_model=dict)
 async def update_paye(paye_id: str, paye: Paye):
