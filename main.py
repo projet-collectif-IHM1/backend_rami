@@ -52,6 +52,7 @@ class Avis(BaseModel):
     commentaire: str
     dateAvis: str
     user_id: str
+    reservation_id:str
 
 class Reservation(BaseModel):
     dateReservation: str
@@ -325,23 +326,31 @@ async def delete_reservation(reservation_id: str):
 
 
 @app.post("/avis/", response_model=dict)
-async def create_avis(avis: Avis, reservation_id: str):
+async def create_avis(avis: Avis):
     # Vérifier si l'utilisateur existe
     user = await db.users.find_one({"_id": ObjectId(avis.user_id)})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Vérifier si la réservation existe
+    reservation = await db.reservations.find_one({"_id": ObjectId(avis.reservation_id)})
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Reservation not found")
+
     # Insérer l'avis dans la base de données
-    result = await db.avis.insert_one(avis.dict())
+    avis_data = avis.dict(exclude={"reservation_id"})  # Exclure reservation_id avant insertion
+    result = await db.avis.insert_one(avis_data)
     avis_id = str(result.inserted_id)
 
     # Mettre à jour la réservation pour ajouter l'ID de l'avis
-    update_result = await db.reservations.update_one(
-        {"_id": ObjectId(reservation_id)},
-        {"$push": {"avis_id": avis_id}}  # Ajoute l'ID de l'avis à la liste
+    await db.reservations.update_one(
+        {"_id": ObjectId(avis.reservation_id)},
+        {"$push": {"avis_id": avis_id}}
     )
 
     return {"id": avis_id, "message": "Avis ajouté avec succès à la réservation"}
+
+
 
 
 @app.get("/avis/", response_model=List[Avis])
