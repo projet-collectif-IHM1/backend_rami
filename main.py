@@ -172,13 +172,23 @@ async def update_paye(paye_id: str, paye: Paye):
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Paye not found")
     return {"message": "Paye updated successfully"}
-
 @app.delete("/payes/{paye_id}", response_model=dict)
 async def delete_paye(paye_id: str):
-    result = await db.payes.delete_one({"_id": get_objectid(paye_id)})
-    if result.deleted_count == 0:
+    # 1. Chercher tous les hôtels associés au pays
+    hotels_to_delete = await db.hotels.find({"paye_id": paye_id}).to_list(length=None)
+    
+    # 2. Supprimer tous les hôtels associés
+    if hotels_to_delete:
+        hotel_ids_to_delete = [hotel["_id"] for hotel in hotels_to_delete]
+        result_hotels = await db.hotels.delete_many({"_id": {"$in": hotel_ids_to_delete}})
+    
+    # 3. Supprimer le pays
+    result_paye = await db.payes.delete_one({"_id": get_objectid(paye_id)})
+    if result_paye.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Paye not found")
-    return {"message": "Paye deleted successfully"}
+
+    return {"message": "Paye and its associated hotels deleted successfully"}
+
 
 
 # Hotels
@@ -221,49 +231,68 @@ async def update_hotel(hotel_id: str, hotel: Hotel):
 @app.delete("/hotels/{hotel_id}", response_model=dict)
 async def delete_hotel(hotel_id: str):
     # Supprimer d'abord toutes les chambres associées à cet hôtel
-    await db.chambres.delete_many({"hotel_id": hotel_id})
+    result_chambres = await db.chambres.delete_many({"hotel_id": hotel_id})
+    
     # Supprimer toutes les offres associées à cet hôtel
-    await db.offres.delete_many({"hotel_id": hotel_id})
+    result_offres = await db.offres.delete_many({"hotel_id": hotel_id})
 
-    result = await db.hotels.delete_one({"_id": get_objectid(hotel_id)})
-    if result.deleted_count == 0:
+    # Supprimer l'hôtel
+    result_hotel = await db.hotels.delete_one({"_id": get_objectid(hotel_id)})
+
+    if result_hotel.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Hotel not found")
-    return {"message": "Hotel deleted successfully"}
+
+    return {"message": "Hotel and associated rooms and offers deleted successfully"}
+
 
 
 
 # Chambres
+
 @app.post("/chambres/", response_model=dict)
 async def create_chambre(chambre: Chambre):
+    # Vérification que l'hôtel existe
     hotel_id = chambre.hotel_id
     hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})
 
     if not hotel:
         raise HTTPException(status_code=404, detail="Hotel not found")
-    
-    result = await db.chambres.insert_one(chambre.dict())
 
+    # Créer un dictionnaire à insérer dans la collection chambres
+    chambre_data = chambre.dict()
+    # Insertion de la chambre dans la base de données
+    result = await db.chambres.insert_one(chambre_data)
+
+    # Mise à jour de l'hôtel avec l'ID de la chambre insérée
     update_result = await db.hotels.update_one(
         {"_id": ObjectId(hotel_id)},
-        {"$push": {"chambres": chambre.dict()}}
+        {"$push": {"chambres": str(result.inserted_id)}}  # Ajout seulement de l'ID de la chambre
     )
+
     return {"id": str(result.inserted_id)}
 
 @app.delete("/chambres/{chambre_id}", response_model=dict)
 async def delete_chambre(chambre_id: str):
-    # Supprimer la chambre de l'hôtel correspondant
-    chambre = await db.chambres.find_one({"_id": get_objectid(chambre_id)})
-    if chambre:
-        hotel_id = chambre.get("hotel_id")
-        # Retirer la chambre de la liste des chambres de l'hôtel
-        await db.hotels.update_one(
-            {"_id": get_objectid(hotel_id)},
-            {"$pull": {"chambres": {"_id": get_objectid(chambre_id)}}}
-        )
-
-    result = await db.chambres.delete_one({"_id": get_objectid(chambre_id)})
-    if result.deleted_count == 0:
+    # Trouver la chambre dans la collection chambres
+    chambre = await db.chambres.find_one({"_id": ObjectId(chambre_id)})
+    if not chambre:
         raise HTTPException(status_code=404, detail="Chambre not found")
+
+    # Trouver l'hôtel auquel la chambre appartient
+    hotel_id = chambre['hotel_id']
+    hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hotel not found")
+
+    # Suppression de la chambre de la collection chambres
+    await db.chambres.delete_one({"_id": ObjectId(chambre_id)})
+
+    # Mise à jour de la liste des chambres dans l'hôtel (en supprimant l'ID de la chambre)
+    await db.hotels.update_one(
+        {"_id": ObjectId(hotel_id)},
+        {"$pull": {"chambres": chambre_id}}  # Utiliser $pull pour supprimer l'ID de la chambre de la liste
+    )
+
     return {"message": "Chambre deleted successfully"}
 
 
@@ -275,7 +304,15 @@ async def get_chambre_by_id(chambre_id: str):
     
     return chambre
 
+@app.get("/chambres/", response_model=List[Chambre])
+async def get_all_chambres():
+    # Récupérer toutes les chambres de la base de données
+    chambres = await db.chambres.find().to_list(100)  # Vous pouvez ajuster le nombre max de chambres ici
 
+    if not chambres:
+        raise HTTPException(status_code=404, detail="Aucune chambre trouvée")
+
+    return chambres
 
 
 @app.put("/chambres/{chambre_id}", response_model=dict)
@@ -285,12 +322,7 @@ async def update_chambre(chambre_id: str, chambre: Chambre):
         raise HTTPException(status_code=404, detail="Chambre not found")
     return {"message": "Chambre updated successfully"}
 
-@app.delete("/chambres/{chambre_id}", response_model=dict)
-async def delete_chambre(chambre_id: str):
-    result = await db.chambres.delete_one({"_id": get_objectid(chambre_id)})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Chambre not found")
-    return {"message": "Chambre deleted successfully"}
+
 
 
 
@@ -338,19 +370,33 @@ async def update_offre(offre_id: str, offre: Offre):
 
 @app.delete("/offres/{offre_id}", response_model=dict)
 async def delete_offre(offre_id: str):
-    # Supprimer l'offre de l'hôtel associé
+    # Chercher l'offre dans la collection 'offres'
     offre = await db.offres.find_one({"_id": get_objectid(offre_id)})
-    if offre:
-        hotel_id = offre.get("hotel_id")
-        # Retirer l'offre de la liste des offres de l'hôtel
-        await db.hotels.update_one(
-            {"_id": get_objectid(hotel_id)},
-            {"$pull": {"offre": {"_id": get_objectid(offre_id)}}}
-        )
-
-    result = await db.offres.delete_one({"_id": get_objectid(offre_id)})
-    if result.deleted_count == 0:
+    
+    # Vérifier si l'offre existe
+    if not offre:
         raise HTTPException(status_code=404, detail="Offre not found")
+
+    # Récupérer l'ID de l'hôtel associé à l'offre
+    hotel_id = offre.get("hotel_id")
+
+    # Retirer l'offre de la liste des offres de l'hôtel
+    result_update = await db.hotels.update_one(
+        {"_id": get_objectid(hotel_id)},
+        {"$pull": {"offres": {"_id": get_objectid(offre_id)}}}  # Assurez-vous que la structure de l'élément 'offre' est correcte
+    )
+    
+    # Vérifier si la mise à jour de l'hôtel a réussi
+    if result_update.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Hotel not found or offre not in hotel")
+
+    # Supprimer l'offre de la collection 'offres'
+    result_delete = await db.offres.delete_one({"_id": get_objectid(offre_id)})
+    
+    # Vérifier si la suppression a été effectuée
+    if result_delete.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Offre not found")
+
     return {"message": "Offre deleted successfully"}
 
 
@@ -395,12 +441,14 @@ async def update_reservation(reservation_id: str, reservation: Reservation):
 @app.delete("/reservations/{reservation_id}", response_model=dict)
 async def delete_reservation(reservation_id: str):
     # Supprimer d'abord les avis associés à cette réservation
-    await db.avis.delete_many({"reservation_id": reservation_id})
+    result_avis = await db.avis.delete_many({"reservation_id": reservation_id})
 
-    result = await db.reservations.delete_one({"_id": get_objectid(reservation_id)})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Reservation not found")
-    return {"message": "Reservation deleted successfully"}
+    # Supprimer la réservation
+    result_reservation = await db.reservations.delete_one({"_id": get_objectid(reservation_id)})
+
+
+    return {"message": "Reservation and associated reviews deleted successfully"}
+
 
 
 
@@ -459,7 +507,31 @@ async def update_avis(avis_id: str, avis: Avis):
 
 @app.delete("/avis/{avis_id}", response_model=dict)
 async def delete_avis(avis_id: str):
-    result = await db.avis.delete_one({"_id": get_objectid(avis_id)})
-    if result.deleted_count == 0:
+    # Chercher l'avis dans la collection 'avis'
+    avis = await db.avis.find_one({"_id": get_objectid(avis_id)})
+    
+    # Vérifier si l'avis existe
+    if not avis:
         raise HTTPException(status_code=404, detail="Avis not found")
+    
+    # Récupérer l'ID de la réservation associée à l'avis
+    reservation_id = avis.get("reservation_id")
+
+    # Retirer l'avis de la liste des avis dans la réservation
+    result_update = await db.reservations.update_one(
+        {"_id": get_objectid(reservation_id)},
+        {"$pull": {"avis_id": get_objectid(avis_id)}}  # Retirer l'ID de l'avis de la liste
+    )
+
+    # Vérifier si la mise à jour de la réservation a été effectuée
+    if result_update.modified_count == 0:
+        raise HTTPException(status_code=404, detail="Reservation not found or Avis not in Reservation")
+
+    # Supprimer l'avis de la collection 'avis'
+    result_delete = await db.avis.delete_one({"_id": get_objectid(avis_id)})
+
+    # Vérifier si l'avis a bien été supprimé
+    if result_delete.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Avis not found")
+
     return {"message": "Avis deleted successfully"}
