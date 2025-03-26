@@ -123,6 +123,7 @@ async def signin(user_data: dict):
         raise HTTPException(status_code=400, detail="Email ou mot de passe incorrect")
 
     # Génération du token JWT
+    # Génération du token JWT
     token = jwt.encode(
         {"user_id": str(existing_user["_id"]), "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)},
         SECRET_KEY,
