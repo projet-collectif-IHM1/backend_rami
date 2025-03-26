@@ -41,7 +41,9 @@ class Hotel(BaseModel):
     adresse: str
     classement: int
     chambres: Optional[List[Chambre]] = []
-    description:List[str]
+    hebergement:str
+    restauration:str
+    activites:str
     paye_id: str
     offre: Optional[List[Offre]] = []
     
