@@ -122,10 +122,16 @@ async def update_user(user_id: str, user: User):
 
 @app.delete("/users/{user_id}", response_model=dict)
 async def delete_user(user_id: str):
+    # Supprimer d'abord toutes les réservations associées à cet utilisateur
+    await db.reservations.delete_many({"user_id": user_id})
+    # Supprimer les avis associés à cet utilisateur
+    await db.avis.delete_many({"user_id": user_id})
+
     result = await db.users.delete_one({"_id": get_objectid(user_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User deleted successfully"}
+
 
 @app.get("/users/{user_id}", response_model=User)
 async def get_user_by_id(user_id: str):
@@ -214,10 +220,16 @@ async def update_hotel(hotel_id: str, hotel: Hotel):
 
 @app.delete("/hotels/{hotel_id}", response_model=dict)
 async def delete_hotel(hotel_id: str):
+    # Supprimer d'abord toutes les chambres associées à cet hôtel
+    await db.chambres.delete_many({"hotel_id": hotel_id})
+    # Supprimer toutes les offres associées à cet hôtel
+    await db.offres.delete_many({"hotel_id": hotel_id})
+
     result = await db.hotels.delete_one({"_id": get_objectid(hotel_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Hotel not found")
     return {"message": "Hotel deleted successfully"}
+
 
 
 # Chambres
@@ -237,16 +249,23 @@ async def create_chambre(chambre: Chambre):
     )
     return {"id": str(result.inserted_id)}
 
-@app.get("/chambres/", response_model=List[Chambre])
-async def get_chambres():
-    chambres = await db.chambres.find().to_list(100)
+@app.delete("/chambres/{chambre_id}", response_model=dict)
+async def delete_chambre(chambre_id: str):
+    # Supprimer la chambre de l'hôtel correspondant
+    chambre = await db.chambres.find_one({"_id": get_objectid(chambre_id)})
+    if chambre:
+        hotel_id = chambre.get("hotel_id")
+        # Retirer la chambre de la liste des chambres de l'hôtel
+        await db.hotels.update_one(
+            {"_id": get_objectid(hotel_id)},
+            {"$pull": {"chambres": {"_id": get_objectid(chambre_id)}}}
+        )
 
-    # Convertir _id en string et l'ajouter en tant que 'id'
-    for chambre in chambres:
-        chambre["id"] = str(chambre["_id"])
-        del chambre["_id"]  # Supprimer _id original si nécessaire
+    result = await db.chambres.delete_one({"_id": get_objectid(chambre_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Chambre not found")
+    return {"message": "Chambre deleted successfully"}
 
-    return JSONResponse(status_code=200, content={"status_code": 200, "chambres": chambres})
 
 @app.get("/chambres/{chambre_id}", response_model=Chambre)
 async def get_chambre_by_id(chambre_id: str):
@@ -319,6 +338,16 @@ async def update_offre(offre_id: str, offre: Offre):
 
 @app.delete("/offres/{offre_id}", response_model=dict)
 async def delete_offre(offre_id: str):
+    # Supprimer l'offre de l'hôtel associé
+    offre = await db.offres.find_one({"_id": get_objectid(offre_id)})
+    if offre:
+        hotel_id = offre.get("hotel_id")
+        # Retirer l'offre de la liste des offres de l'hôtel
+        await db.hotels.update_one(
+            {"_id": get_objectid(hotel_id)},
+            {"$pull": {"offre": {"_id": get_objectid(offre_id)}}}
+        )
+
     result = await db.offres.delete_one({"_id": get_objectid(offre_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Offre not found")
@@ -365,10 +394,14 @@ async def update_reservation(reservation_id: str, reservation: Reservation):
 
 @app.delete("/reservations/{reservation_id}", response_model=dict)
 async def delete_reservation(reservation_id: str):
+    # Supprimer d'abord les avis associés à cette réservation
+    await db.avis.delete_many({"reservation_id": reservation_id})
+
     result = await db.reservations.delete_one({"_id": get_objectid(reservation_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Reservation not found")
     return {"message": "Reservation deleted successfully"}
+
 
 
 @app.post("/avis/", response_model=dict)
