@@ -1,10 +1,13 @@
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel,Field
+from pydantic import BaseModel,Field,EmailStr
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId  # Pour travailler avec ObjectId
 from typing import List, Optional
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
+from passlib.context import CryptContext
+import jwt
+import datetime
 
 
 # Middleware CORS pour permettre l'accès depuis Angular (http://localhost:4200)
@@ -16,13 +19,15 @@ app = FastAPI()
 MONGO_URI = "mongodb+srv://rami2000:0000rami@cluster0.ey222.mongodb.net/"
 client = AsyncIOMotorClient(MONGO_URI)
 db = client["test"]
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SECRET_KEY = "rami0000"  # Changez cette clé secrète
 
 # Modèles Pydantic
 class User(BaseModel):
     name: str
     email: str
     password: str
-    role: str
+    role: str = "user"
 
 class Chambre(BaseModel):
     typeChambre: str
@@ -65,7 +70,6 @@ class Reservation(BaseModel):
     dateDepart: str
     dateRetour: str
     typeReservation: str
-    prix: float
     offre_id:str
     avis_id:Optional[List[Avis]] = []
 
@@ -97,12 +101,36 @@ def get_objectid(id: str):
         raise HTTPException(status_code=400, detail="Invalid ID format")
 
 # Routes CRUD
+@app.post("/register/", response_model=dict)
+async def register(user: User):
+    existing_user = await db.users.find_one({"email": user.email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email déjà utilisé")
 
-# post_Users
-@app.post("/users/", response_model=dict)
-async def create_user(user: User):
-    result = await db.users.insert_one(user.dict())
-    return {"id": str(result.inserted_id)}
+    # Hachage du mot de passe
+    hashed_password = pwd_context.hash(user.password)
+    user_data = user.dict()
+    user_data["password"] = hashed_password  # Remplace le mot de passe par le hash
+
+    result = await db.users.insert_one(user_data)
+    return {"id": str(result.inserted_id), "message": "Utilisateur créé avec succès"}
+
+# 🚀 Route de connexion
+@app.post("/login/", response_model=dict)
+async def signin(user_data: dict):
+    existing_user = await db.users.find_one({"email": user_data["email"]})
+    if not existing_user or not pwd_context.verify(user_data["password"], existing_user["password"]):
+        raise HTTPException(status_code=400, detail="Email ou mot de passe incorrect")
+
+    # Génération du token JWT
+    token = jwt.encode(
+        {"user_id": str(existing_user["_id"]), "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)},
+        SECRET_KEY,
+        algorithm="HS256"
+    )
+
+    return {"token": token, "message": "Connexion réussie"}
+
 
 @app.get("/users/", response_model=List[User])
 async def get_users():
