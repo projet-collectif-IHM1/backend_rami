@@ -96,7 +96,7 @@ def get_objectid(id: str):
 
 # Routes CRUD
 
-# Users
+# post_Users
 @app.post("/users/", response_model=dict)
 async def create_user(user: User):
     result = await db.users.insert_one(user.dict())
@@ -127,6 +127,14 @@ async def delete_user(user_id: str):
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User deleted successfully"}
 
+@app.get("/users/{user_id}", response_model=User)
+async def get_user_by_id(user_id: str):
+    user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+    
+    return user
+
 @app.get("/payes/", response_model=List[Paye])
 async def get_payes():
     payes = await db.payes.find().to_list(100)
@@ -137,6 +145,14 @@ async def get_payes():
         del paye["_id"]  # Supprimer _id original si nécessaire
 
     return JSONResponse(status_code=200, content={"status_code": 200, "payes": payes})
+
+@app.get("/payes/{paye_id}", response_model=Paye)
+async def get_paye_by_id(paye_id: str):
+    paye = await db.payes.find_one({"_id": ObjectId(paye_id)})
+    if not paye:
+        raise HTTPException(status_code=404, detail="Paye non trouvée")
+    
+    return paye# Retourne l'objet paye
 
 # Payes
 @app.post("/payes/", response_model=dict)
@@ -177,6 +193,15 @@ async def get_hotels():
         hotel["id"] = str(hotel["_id"])
         del hotel["_id"]  # Supprimer _id original si nécessaire
     return JSONResponse(status_code=200, content={"status_code": 200, "hotels": hotels})
+
+@app.get("/hotels/{hotel_id}", response_model=Hotel)
+async def get_hotel_by_id(hotel_id: str):
+    hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hôtel non trouvé")
+    
+    return hotel
+
 
 
 
@@ -223,6 +248,14 @@ async def get_chambres():
 
     return JSONResponse(status_code=200, content={"status_code": 200, "chambres": chambres})
 
+@app.get("/chambres/{chambre_id}", response_model=Chambre)
+async def get_chambre_by_id(chambre_id: str):
+    chambre = await db.chambres.find_one({"_id": ObjectId(chambre_id)})
+    if not chambre:
+        raise HTTPException(status_code=404, detail="Chambre non trouvée")
+    
+    return chambre
+
 
 
 
@@ -268,6 +301,13 @@ async def get_offres():
         del offre["_id"]  # Supprimer _id original si nécessaire
 
     return JSONResponse(status_code=200, content={"status_code": 200, "offres": offres})
+@app.get("/offres/{offre_id}", response_model=Offre)
+async def get_offre_by_id(offre_id: str):
+    offre = await db.offres.find_one({"_id": ObjectId(offre_id)})
+    if not offre:
+        raise HTTPException(status_code=404, detail="Offre non trouvée")
+    
+    return offre
 
 
 @app.put("/offres/{offre_id}", response_model=dict)
@@ -308,7 +348,13 @@ async def get_reservations():
         del reservation["_id"]  # Supprimer _id original si nécessaire
 
     return JSONResponse(status_code=200, content={"status_code": 200, "reservations": reservations})
-
+@app.get("/reservations/{reservation_id}", response_model=Reservation)
+async def get_reservation_by_id(reservation_id: str):
+    reservation = await db.reservations.find_one({"_id": ObjectId(reservation_id)})
+    if not reservation:
+        raise HTTPException(status_code=404, detail="Réservation non trouvée")
+    
+    return reservation
 
 @app.put("/reservations/{reservation_id}", response_model=dict)
 async def update_reservation(reservation_id: str, reservation: Reservation):
@@ -363,6 +409,13 @@ async def get_avis():
         del a["_id"]  # Supprimer _id original si nécessaire
 
     return JSONResponse(status_code=200, content={"status_code": 200, "avis": avis})
+@app.get("/avis/{avis_id}", response_model=Avis)
+async def get_avis_by_id(avis_id: str):
+    avis = await db.avis.find_one({"_id": ObjectId(avis_id)})
+    if not avis:
+        raise HTTPException(status_code=404, detail="Avis non trouvé")
+    
+    return avis
 
 @app.put("/avis/{avis_id}", response_model=dict)
 async def update_avis(avis_id: str, avis: Avis):
