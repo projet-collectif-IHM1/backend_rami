@@ -8,6 +8,8 @@ from fastapi.encoders import jsonable_encoder
 from passlib.context import CryptContext
 import jwt
 import datetime
+from bson import ObjectId
+from fastapi import HTTPException
 
 
 # Middleware CORS pour permettre l'accès depuis Angular (http://localhost:4200)
@@ -63,14 +65,12 @@ class Avis(BaseModel):
 
 class Reservation(BaseModel):
     dateReservation: str
-    montantTotal: float
-    destination: str
-    description: str
     placesDisponibles: int
     dateDepart: str
     dateRetour: str
     typeReservation: str
-    offre_id:str
+    hotel_id: str
+    chambre_id:str
     avis_id:Optional[List[Avis]] = []
 
 
@@ -162,7 +162,7 @@ async def delete_user(user_id: str):
     # Supprimer les avis associés à cet utilisateur
     await db.avis.delete_many({"user_id": user_id})
 
-    result = await db.users.delete_one({"_id": get_objectid(user_id)})
+    result = await db.users.delete_one({"_id": ObjectId(user_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "User deleted successfully"}
@@ -218,7 +218,7 @@ async def delete_paye(paye_id: str):
         result_hotels = await db.hotels.delete_many({"_id": {"$in": hotel_ids_to_delete}})
     
     # 3. Supprimer le pays
-    result_paye = await db.payes.delete_one({"_id": get_objectid(paye_id)})
+    result_paye = await db.payes.delete_one({"_id": ObjectId(paye_id)})
     if result_paye.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Paye not found")
 
@@ -272,7 +272,7 @@ async def delete_hotel(hotel_id: str):
     result_offres = await db.offres.delete_many({"hotel_id": hotel_id})
 
     # Supprimer l'hôtel
-    result_hotel = await db.hotels.delete_one({"_id": get_objectid(hotel_id)})
+    result_hotel = await db.hotels.delete_one({"_id": ObjectId(hotel_id)})
 
     if result_hotel.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Hotel not found")
@@ -411,8 +411,6 @@ async def update_offre(offre_id: str, offre: Offre):
         raise HTTPException(status_code=404, detail="Offre not found")
     return {"message": "Offre updated successfully"}
 
-from bson import ObjectId
-from fastapi import HTTPException
 
 @app.delete("/offres/{offre_id}", response_model=dict)
 async def delete_offre(offre_id: str):
@@ -424,29 +422,49 @@ async def delete_offre(offre_id: str):
     # Récupérer l'ID de l'hôtel associé à l'offre
     hotel_id = offre.get("hotel_id")
 
-    # Supprimer l'offre de l'hôtel si elle existe
-    result_update = await db.hotels.update_one(
+    # Trouver l'hôtel auquel l'offre appartient
+    hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hotel not found")
+
+    # Suppression de l'offre de la collection offres
+    await db.offres.delete_one({"_id": ObjectId(offre_id)})
+
+    # Mise à jour de l'hôtel pour retirer l'ID de l'offre de la liste des offres
+    await db.hotels.update_one(
         {"_id": ObjectId(hotel_id)},
-        {"$pull": {"offre": ObjectId(offre_id)}}
+        {"$pull": {"offre": ObjectId(offre_id)}}  # Utiliser $pull pour retirer l'ID de l'offre de la liste
     )
 
-    # Supprimer l'offre de la collection 'offres'
-    result_delete = await db.offres.delete_one({"_id": ObjectId(offre_id)})
-    
     return {"message": "Offre deleted successfully"}
+
 
 
 # Réservations
 @app.post("/reservations/", response_model=dict)
 async def create_reservation(reservation: Reservation):
-    # Vérification si l'Offre existe
-    offre = await db.offres.find_one({"_id": ObjectId(reservation.offre_id)})
-    if not offre:
-        raise HTTPException(status_code=404, detail="Offre not found")
-    
-    # Créer la réservation
-    result = await db.reservations.insert_one(reservation.dict())
-    return {"id": str(result.inserted_id)}  # Retourner l'ID de la réservation ajoutée
+    # Vérification de la chambre dans la base de données
+    chambre = await db.chambres.find_one({"_id": ObjectId(reservation.chambre_id), "hotel_id": reservation.hotel_id})
+    if not chambre:
+        raise HTTPException(status_code=404, detail="Chambre non trouvée")
+
+    # Vérification de l'hôtel dans la base de données
+    hotel = await db.hotels.find_one({"_id": ObjectId(reservation.hotel_id)})
+    if not hotel:
+        raise HTTPException(status_code=404, detail="Hôtel non trouvé")
+
+    # Vérification des places disponibles
+    if reservation.placesDisponibles <= 0:
+        raise HTTPException(status_code=400, detail="Nombre de places disponibles doit être supérieur à 0")
+
+    # Ajouter la réservation dans la base de données
+    reservation_data = reservation.dict()
+    result = await db.reservations.insert_one(reservation_data)
+
+    return {
+        "id": str(result.inserted_id),
+        "message": "Réservation effectuée avec succès"
+    } # Retourner l'ID de la réservation ajoutée
 
 
 @app.get("/reservations/", response_model=List[Reservation])
@@ -480,7 +498,7 @@ async def delete_reservation(reservation_id: str):
     result_avis = await db.avis.delete_many({"reservation_id": reservation_id})
 
     # Supprimer la réservation
-    result_reservation = await db.reservations.delete_one({"_id": get_objectid(reservation_id)})
+    result_reservation = await db.reservations.delete_one({"_id": ObjectId(reservation_id)})
 
 
     return {"message": "Reservation and associated reviews deleted successfully"}
