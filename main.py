@@ -411,35 +411,28 @@ async def update_offre(offre_id: str, offre: Offre):
         raise HTTPException(status_code=404, detail="Offre not found")
     return {"message": "Offre updated successfully"}
 
+from bson import ObjectId
+from fastapi import HTTPException
+
 @app.delete("/offres/{offre_id}", response_model=dict)
 async def delete_offre(offre_id: str):
-    # Chercher l'offre dans la collection 'offres'
-    offre = await db.offres.find_one({"_id": get_objectid(offre_id)})
-    
     # Vérifier si l'offre existe
+    offre = await db.offres.find_one({"_id": ObjectId(offre_id)})
     if not offre:
         raise HTTPException(status_code=404, detail="Offre not found")
 
     # Récupérer l'ID de l'hôtel associé à l'offre
     hotel_id = offre.get("hotel_id")
 
-    # Retirer l'offre de la liste des offres de l'hôtel
+    # Supprimer l'offre de l'hôtel si elle existe
     result_update = await db.hotels.update_one(
-        {"_id": get_objectid(hotel_id)},
-        {"$pull": {"offres": {"_id": get_objectid(offre_id)}}}  # Assurez-vous que la structure de l'élément 'offre' est correcte
+        {"_id": ObjectId(hotel_id)},
+        {"$pull": {"offre": ObjectId(offre_id)}}
     )
-    
-    # Vérifier si la mise à jour de l'hôtel a réussi
-    if result_update.modified_count == 0:
-        raise HTTPException(status_code=404, detail="Hotel not found or offre not in hotel")
 
     # Supprimer l'offre de la collection 'offres'
-    result_delete = await db.offres.delete_one({"_id": get_objectid(offre_id)})
+    result_delete = await db.offres.delete_one({"_id": ObjectId(offre_id)})
     
-    # Vérifier si la suppression a été effectuée
-    if result_delete.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Offre not found")
-
     return {"message": "Offre deleted successfully"}
 
 
