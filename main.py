@@ -116,21 +116,25 @@ async def register(user: User):
     return {"id": str(result.inserted_id), "message": "Utilisateur créé avec succès"}
 
 # 🚀 Route de connexion
+# 🚀 Route de connexion
 @app.post("/login/", response_model=dict)
 async def signin(user_data: dict):
     existing_user = await db.users.find_one({"email": user_data["email"]})
     if not existing_user or not pwd_context.verify(user_data["password"], existing_user["password"]):
         raise HTTPException(status_code=400, detail="Email ou mot de passe incorrect")
 
-    # Génération du token JWT
-    # Génération du token JWT
+    # Génération du token JWT avec le rôle de l'utilisateur
     token = jwt.encode(
-        {"user_id": str(existing_user["_id"]), "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)},
+        {
+            "user_id": str(existing_user["_id"]),
+            "role": existing_user["role"],  # Ajout du rôle
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=2)
+        },
         SECRET_KEY,
         algorithm="HS256"
     )
 
-    return {"token": token, "message": "Connexion réussie"}
+    return {"token": token, "role": existing_user["role"], "message": "Connexion réussie"}
 
 
 @app.get("/users/", response_model=List[User])
