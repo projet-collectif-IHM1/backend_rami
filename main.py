@@ -354,6 +354,23 @@ async def get_all_chambres():
         del chambre["_id"]  # Supprimer _id original si nécessaire
 
     return JSONResponse(status_code=200, content={"status_code": 200, "chambres": chambres})
+#getchambrebyid
+@app.get("/chambres/hotel/{hotel_id}", response_model=List[Chambre])
+async def get_chambres_by_hotel(hotel_id: str):
+    # Récupérer toutes les chambres de l'hôtel spécifié
+    chambres = await db.chambres.find({"hotel_id": hotel_id}).to_list(100)
+
+    # Vérifier si aucune chambre n'est trouvée
+    if not chambres:
+        raise HTTPException(status_code=404, detail="Aucune chambre trouvée pour cet hôtel")
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for chambre in chambres:
+        chambre["id"] = str(chambre["_id"])
+        del chambre["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "chambres": chambres})
+
 
 
 
