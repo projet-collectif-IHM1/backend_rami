@@ -52,6 +52,8 @@ class Hotel(BaseModel):
     restauration:str
     activites:str
     paye_id: str
+    datedabut:str
+    datefin:str
     offre: Optional[List[Offre]] = []
     
 
@@ -188,13 +190,13 @@ async def get_payes():
     return JSONResponse(status_code=200, content={"status_code": 200, "payes": payes})
 
 @app.get("/payes/{paye_id}", response_model=Paye)
+
 async def get_paye_by_id(paye_id: str):
     paye = await db.payes.find_one({"_id": ObjectId(paye_id)})
     if not paye:
         raise HTTPException(status_code=404, detail="Paye non trouvée")
     
     return paye# Retourne l'objet paye
-
 # Payes
 @app.post("/payes/", response_model=dict)
 async def create_paye(paye: Paye):
