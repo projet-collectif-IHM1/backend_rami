@@ -252,8 +252,33 @@ async def get_hotel_by_id(hotel_id: str):
     hotel = await db.hotels.find_one({"_id": ObjectId(hotel_id)})
     if not hotel:
         raise HTTPException(status_code=404, detail="Hôtel non trouvé")
-    
-    return hotel
+
+    hotel["id"] = str(hotel["_id"])
+    del hotel["_id"]
+
+    # 🔁 Charger les objets chambres si la liste existe
+    chambre_ids = [ObjectId(cid) for cid in hotel.get("chambres", [])]
+    chambres = await db.chambres.find({"_id": {"$in": chambre_ids}}).to_list(length=100)
+    for c in chambres:
+        c["id"] = str(c["_id"])
+        del c["_id"]
+        if isinstance(c.get("hotel_id"), ObjectId):
+            c["hotel_id"] = str(c["hotel_id"])
+
+    hotel["chambres"] = chambres
+
+    # Idem pour les offres si tu veux faire pareil :
+    offre_ids = [ObjectId(oid) for oid in hotel.get("offre", [])] if hotel.get("offre") else []
+    offres = await db.offres.find({"_id": {"$in": offre_ids}}).to_list(length=100)
+    for o in offres:
+        o["id"] = str(o["_id"])
+        del o["_id"]
+        if isinstance(o.get("hotel_id"), ObjectId):
+            o["hotel_id"] = str(o["hotel_id"])
+
+    hotel["offre"] = offres
+
+    return jsonable_encoder(hotel)
 
 
 
