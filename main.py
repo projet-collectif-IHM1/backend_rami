@@ -80,6 +80,11 @@ class Reservation(BaseModel):
 class Paye(BaseModel):
     nompaye: str
     imagepaye: str
+
+class Contact(BaseModel):
+    name: str
+    email: str
+    message:str
   
     
 
@@ -633,3 +638,28 @@ async def delete_avis(avis_id: str):
         raise HTTPException(status_code=404, detail="Avis not found")
 
     return {"message": "Avis deleted successfully"}
+
+@app.get("/contacts/", response_model=List[Paye])
+async def get_payes():
+    payes = await db.contacts.find().to_list(100)
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for paye in payes:
+        paye["id"] = str(paye["_id"])
+        del paye["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "contacts": payes})
+
+@app.get("/contacts/{contact_id}", response_model=Paye)
+
+async def get_paye_by_id(contact_id: str):
+    paye = await db.contacts.find_one({"_id": ObjectId(contact_id)})
+    if not paye:
+        raise HTTPException(status_code=404, detail="contact non trouvée")
+    
+    return paye# Retourne l'objet paye
+# Payes
+@app.post("/contacts/", response_model=dict)
+async def create_paye(paye: Paye):
+    result = await db.contacts.insert_one(paye.dict())
+    return {"id": str(result.inserted_id)}  # Retourner l'ID de la paye ajoutée
