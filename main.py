@@ -246,10 +246,21 @@ async def create_hotel(hotel: Hotel):
 async def get_hotels():
     hotels = await db.hotels.find().to_list(100)
     
-    # Convertir _id en string et l'ajouter en tant que 'id'
     for hotel in hotels:
         hotel["id"] = str(hotel["_id"])
-        del hotel["_id"]  # Supprimer _id original si nécessaire
+        del hotel["_id"]
+
+        # Récupérer les détails des chambres
+        if "chambres" in hotel and hotel["chambres"]:
+            detailed_chambres = []
+            for chambre_id in hotel["chambres"]:
+                chambre = await db.chambres.find_one({"_id": ObjectId(chambre_id)})
+                if chambre:
+                    chambre["id"] = str(chambre["_id"])
+                    del chambre["_id"]
+                    detailed_chambres.append(chambre)
+            hotel["chambres"] = detailed_chambres
+
     return JSONResponse(status_code=200, content={"status_code": 200, "hotels": hotels})
 
 @app.get("/hotels/{hotel_id}", response_model=Hotel)
