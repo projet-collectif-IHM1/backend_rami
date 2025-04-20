@@ -85,6 +85,10 @@ class Contact(BaseModel):
     name: str
     email: str
     message:str
+
+class Option(BaseModel):
+    typeOption: str
+    percent:float
   
     
 
@@ -686,6 +690,22 @@ async def get_paye_by_id(contact_id: str):
     return paye# Retourne l'objet paye
 # Payes
 @app.post("/contacts/", response_model=dict)
-async def create_paye(paye: Paye):
+async def create_paye(paye: Contact):
     result = await db.contacts.insert_one(paye.dict())
-    return {"id": str(result.inserted_id)}  # Retourner l'ID de la paye ajoutée
+    return {"id": str(result.inserted_id)} 
+
+@app.post("/options/", response_model=dict)
+async def create_paye(paye: Option):
+    result = await db.options.insert_one(paye.dict())
+    return {"id": str(result.inserted_id)}
+
+@app.get("/options/", response_model=List[Paye])
+async def get_payes():
+    payes = await db.options.find().to_list(100)
+
+    # Convertir _id en string et l'ajouter en tant que 'id'
+    for paye in payes:
+        paye["id"] = str(paye["_id"])
+        del paye["_id"]  # Supprimer _id original si nécessaire
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "options": payes}) # Retourner l'ID de la paye ajoutée
