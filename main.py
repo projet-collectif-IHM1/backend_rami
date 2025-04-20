@@ -89,6 +89,7 @@ class Contact(BaseModel):
 class Option(BaseModel):
     typeOption: str
     percent:float
+    chambre_id:str
   
     
 
@@ -694,18 +695,60 @@ async def create_paye(paye: Contact):
     result = await db.contacts.insert_one(paye.dict())
     return {"id": str(result.inserted_id)} 
 
-@app.post("/options/", response_model=dict)
-async def create_paye(paye: Option):
-    result = await db.options.insert_one(paye.dict())
+@app.post("/options", response_model=dict)
+async def create_hotel(hotel: Option):
+    Paye = await db.chambres.find_one({"_id": ObjectId(hotel.chambre_id)})
+    if not Paye:
+        raise HTTPException(status_code=404, detail="chmabre not found")
+    result = await db.options.insert_one(hotel.dict())
     return {"id": str(result.inserted_id)}
 
-@app.get("/options/", response_model=List[Paye])
-async def get_payes():
-    payes = await db.options.find().to_list(100)
 
-    # Convertir _id en string et l'ajouter en tant que 'id'
-    for paye in payes:
-        paye["id"] = str(paye["_id"])
-        del paye["_id"]  # Supprimer _id original si nécessaire
+@app.get("/options/", response_model=List[dict])
+async def get_options():
+    options = await db.options.find().to_list(100)
 
-    return JSONResponse(status_code=200, content={"status_code": 200, "options": payes}) # Retourner l'ID de la paye ajoutée
+    for option in options:
+        option["id"] = str(option["_id"])
+        del option["_id"]
+
+        # Récupérer les détails complets de la chambre
+        chambre = await db.chambres.find_one({"_id": ObjectId(option["chambre_id"])})
+        if chambre:
+            chambre["id"] = str(chambre["_id"])
+            del chambre["_id"]
+            option["chambre"] = chambre  # Ajout des détails de la chambre
+        else:
+            option["chambre"] = None  # Si la chambre n'existe pas
+
+        del option["chambre_id"]  # Supprimer l'ancien champ ID si tu veux
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "options": options})
+@app.get("/options/{option_id}", response_model=dict)
+async def get_option_by_id(option_id: str):
+    # Vérifier que l'ID est valide
+    try:
+        oid = ObjectId(option_id)
+    except:
+        raise HTTPException(status_code=400, detail="ID invalide")
+
+    # Rechercher l'option
+    option = await db.options.find_one({"_id": oid})
+    if not option:
+        raise HTTPException(status_code=404, detail="Option non trouvée")
+
+    option["id"] = str(option["_id"])
+    del option["_id"]
+
+    # Ajouter les détails de la chambre
+    chambre = await db.chambres.find_one({"_id": ObjectId(option["chambre_id"])})
+    if chambre:
+        chambre["id"] = str(chambre["_id"])
+        del chambre["_id"]
+        option["chambre"] = chambre
+    else:
+        option["chambre"] = None
+
+    del option["chambre_id"]
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "option": option})
