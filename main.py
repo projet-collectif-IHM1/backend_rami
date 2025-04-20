@@ -31,11 +31,18 @@ class User(BaseModel):
     password: str
     role: str = "user"
 
+class Option(BaseModel):
+    typeOption: str
+    percent:float
+    chambre_id:str
+    
+
 class Chambre(BaseModel):
     typeChambre: str
     imageChambre: List[str]
     prixchambre:float
     hotel_id: str
+    option: Optional[List[Option]] = []
     
 class Offre(BaseModel):
     prixParNuit: float
@@ -86,10 +93,7 @@ class Contact(BaseModel):
     email: str
     message:str
 
-class Option(BaseModel):
-    typeOption: str
-    percent:float
-    chambre_id:str
+
   
     
 
@@ -696,11 +700,18 @@ async def create_paye(paye: Contact):
     return {"id": str(result.inserted_id)} 
 
 @app.post("/options", response_model=dict)
-async def create_hotel(hotel: Option):
-    Paye = await db.chambres.find_one({"_id": ObjectId(hotel.chambre_id)})
-    if not Paye:
-        raise HTTPException(status_code=404, detail="chmabre not found")
-    result = await db.options.insert_one(hotel.dict())
+async def create_offre(offre: Option):
+    hotel = await db.chambres.find_one({"_id": ObjectId(offre.chambre_id)})
+    if not hotel:
+        raise HTTPException(status_code=404, detail="chambres not found")
+
+    result = await db.offres.insert_one(offre.model_dump())
+    
+    await db.chambres.update_one(
+        {"_id": ObjectId(offre.chambre_id)},
+        {"$push": {"option": offre.model_dump()}}
+    )
+
     return {"id": str(result.inserted_id)}
 
 
