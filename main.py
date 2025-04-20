@@ -534,13 +534,31 @@ async def get_reservations():
         del reservation["_id"]  # Supprimer _id original si nécessaire
 
     return JSONResponse(status_code=200, content={"status_code": 200, "reservations": reservations})
+
 @app.get("/reservations/{reservation_id}", response_model=Reservation)
 async def get_reservation_by_id(reservation_id: str):
     reservation = await db.reservations.find_one({"_id": ObjectId(reservation_id)})
-    if not reservation:
-        raise HTTPException(status_code=404, detail="Réservation non trouvée")
     
-    return reservation
+    if reservation:
+        # Traitement des avis associés
+        avis = reservation.get("avis_id", [])
+        for o in avis:
+            if isinstance(o.get("reservation_id"), ObjectId):
+                o["reservation_id"] = str(o["reservation_id"])  # Convertir le ObjectId en string
+            if isinstance(o.get("user_id"), ObjectId):
+                o["user_id"] = str(o["user_id"])  # Convertir le ObjectId en string
+        
+        # S'assurer que les avis sont bien mis à jour dans la réservation
+        reservation["avis_id"] = avis
+        
+        return Reservation(**reservation)
+
+    raise HTTPException(status_code=404, detail="Réservation non trouvée")
+
+
+
+
+
 
 @app.put("/reservations/{reservation_id}", response_model=dict)
 async def update_reservation(reservation_id: str, reservation: Reservation):
