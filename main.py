@@ -752,3 +752,29 @@ async def get_option_by_id(option_id: str):
     del option["chambre_id"]
 
     return JSONResponse(status_code=200, content={"status_code": 200, "option": option})
+@app.get("/options/chambre/{chambre_id}", response_model=dict)
+async def get_options_by_chambre(chambre_id: str):
+    try:
+        chambre_oid = ObjectId(chambre_id)
+    except:
+        raise HTTPException(status_code=400, detail="ID de chambre invalide")
+
+    # Vérifier si la chambre existe
+    chambre = await db.chambres.find_one({"_id": chambre_oid})
+    if not chambre:
+        raise HTTPException(status_code=404, detail="Chambre non trouvée")
+
+    chambre["id"] = str(chambre["_id"])
+    del chambre["_id"]
+
+    # Récupérer les options liées à cette chambre
+    options = await db.options.find({"chambre_id": chambre_id}).to_list(100)
+
+    # Ajouter les détails complets de la chambre dans chaque option
+    for option in options:
+        option["id"] = str(option["_id"])
+        del option["_id"]
+        option["chambre"] = chambre
+        del option["chambre_id"]
+
+    return JSONResponse(status_code=200, content={"status_code": 200, "options": options})
