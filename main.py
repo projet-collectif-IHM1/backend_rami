@@ -272,8 +272,12 @@ async def get_hotel_by_id(hotel_id: str):
     hotel["id"] = str(hotel["_id"])
     del hotel["_id"]
 
-    # 🔁 Charger les objets chambres si la liste existe
-    chambre_ids = [ObjectId(cid) for cid in hotel.get("chambres", [])]
+    # 🔁 CHAMBRES
+    chambre_ids = []
+    for cid in hotel.get("chambres", []):
+        if ObjectId.is_valid(cid):
+            chambre_ids.append(ObjectId(cid))
+
     chambres = await db.chambres.find({"_id": {"$in": chambre_ids}}).to_list(length=100)
     for c in chambres:
         c["id"] = str(c["_id"])
@@ -283,19 +287,12 @@ async def get_hotel_by_id(hotel_id: str):
 
     hotel["chambres"] = chambres
 
-    # Idem pour les offres si tu veux faire pareil :
-    offre_ids = [ObjectId(oid) for oid in hotel.get("offre", [])] if hotel.get("offre") else []
-    offres = await db.offres.find({"_id": {"$in": offre_ids}}).to_list(length=100)
-    for o in offres:
-        o["id"] = str(o["_id"])
-        del o["_id"]
+    # ✅ Garde les objets "offre" tels quels
+    for o in hotel.get("offre", []):
         if isinstance(o.get("hotel_id"), ObjectId):
             o["hotel_id"] = str(o["hotel_id"])
 
-    hotel["offre"] = offres
-
     return jsonable_encoder(hotel)
-
 
 
 
