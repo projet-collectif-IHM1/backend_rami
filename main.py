@@ -704,7 +704,7 @@ async def create_hotel(hotel: Option):
     return {"id": str(result.inserted_id)}
 
 
-@app.get("/options/", response_model=List[dict])
+@app.get("/options", response_model=List[dict])
 async def get_options():
     options = await db.options.find().to_list(100)
 
