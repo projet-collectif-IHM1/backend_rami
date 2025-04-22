@@ -718,23 +718,30 @@ async def create_offre(offre: Option):
 @app.get("/options", response_model=List[dict])
 async def get_options():
     options = await db.options.find().to_list(100)
+    response_list = []
 
     for option in options:
-        option["id"] = str(option["_id"])
-        del option["_id"]
+        # Construire la réponse avec les champs du modèle
+        option_data = {
+            "id": str(option["_id"]),
+            "typeOption": option["typeOption"],
+            "percent": option["percent"],
+            "chambre_id": option["chambre_id"]
+        }
 
-        # Récupérer les détails complets de la chambre
+        # Récupérer les détails de la chambre
         chambre = await db.chambres.find_one({"_id": ObjectId(option["chambre_id"])})
         if chambre:
             chambre["id"] = str(chambre["_id"])
             del chambre["_id"]
-            option["chambre"] = chambre  # Ajout des détails de la chambre
-        else:
-            option["chambre"] = None  # Si la chambre n'existe pas
+     
 
-        del option["chambre_id"]  # Supprimer l'ancien champ ID si tu veux
+        response_list.append(option_data)
 
-    return JSONResponse(status_code=200, content={"status_code": 200, "options": options})
+    return JSONResponse(status_code=200, content={"status_code": 200, "options": response_list})
+
+
+
 @app.get("/options/{option_id}", response_model=dict)
 async def get_option_by_id(option_id: str):
     # Vérifier que l'ID est valide
@@ -748,44 +755,19 @@ async def get_option_by_id(option_id: str):
     if not option:
         raise HTTPException(status_code=404, detail="Option non trouvée")
 
-    option["id"] = str(option["_id"])
-    del option["_id"]
+    # Préparer la réponse conforme au modèle
+    response = {
+        "id": str(option["_id"]),
+        "typeOption": option["typeOption"],
+        "percent": option["percent"],
+        "chambre_id": option["chambre_id"]
+    }
 
-    # Ajouter les détails de la chambre
+    # Ajouter les détails de la chambre dans un champ séparé
     chambre = await db.chambres.find_one({"_id": ObjectId(option["chambre_id"])})
     if chambre:
         chambre["id"] = str(chambre["_id"])
         del chambre["_id"]
-        option["chambre"] = chambre
-    else:
-        option["chambre"] = None
 
-    del option["chambre_id"]
 
-    return JSONResponse(status_code=200, content={"status_code": 200, "option": option})
-@app.get("/options/chambre/{chambre_id}", response_model=dict)
-async def get_options_by_chambre(chambre_id: str):
-    try:
-        chambre_oid = ObjectId(chambre_id)
-    except:
-        raise HTTPException(status_code=400, detail="ID de chambre invalide")
-
-    # Vérifier si la chambre existe
-    chambre = await db.chambres.find_one({"_id": chambre_oid})
-    if not chambre:
-        raise HTTPException(status_code=404, detail="Chambre non trouvée")
-
-    chambre["id"] = str(chambre["_id"])
-    del chambre["_id"]
-
-    # Récupérer les options liées à cette chambre
-    options = await db.options.find({"chambre_id": chambre_id}).to_list(100)
-
-    # Ajouter les détails complets de la chambre dans chaque option
-    for option in options:
-        option["id"] = str(option["_id"])
-        del option["_id"]
-        option["chambre"] = chambre
-        del option["chambre_id"]
-
-    return JSONResponse(status_code=200, content={"status_code": 200, "options": options})
+    return JSONResponse(status_code=200, content={"status_code": 200, "option": response})
