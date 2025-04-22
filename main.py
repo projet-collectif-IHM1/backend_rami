@@ -700,19 +700,23 @@ async def create_paye(paye: Contact):
     return {"id": str(result.inserted_id)} 
 
 @app.post("/options", response_model=dict)
-async def create_offre(offre: Option):
-    hotel = await db.chambres.find_one({"_id": ObjectId(offre.chambre_id)})
-    if not hotel:
-        raise HTTPException(status_code=404, detail="chambres not found")
+async def create_option(option: Option):
+    # Vérifier si la chambre existe
+    chambre = await db.chambres.find_one({"_id": ObjectId(option.chambre_id)})
+    if not chambre:
+        raise HTTPException(status_code=404, detail="Chambre non trouvée")
 
-    result = await db.offres.insert_one(offre.model_dump())
-    
+    # Insérer l'option dans la collection 'options'
+    result = await db.options.insert_one(option.model_dump())
+
+    # Optionnel : ajouter l'ID de l'option dans la chambre
     await db.chambres.update_one(
-        {"_id": ObjectId(offre.chambre_id)},
-        {"$push": {"option": offre.model_dump()}}
+        {"_id": ObjectId(option.chambre_id)},
+        {"$push": {"option": str(result.inserted_id)}}
     )
 
     return {"id": str(result.inserted_id)}
+
 
 
 @app.get("/options", response_model=List[dict])
