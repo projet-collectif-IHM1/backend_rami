@@ -775,7 +775,7 @@ async def get_option_by_id(option_id: str):
 
 
     return JSONResponse(status_code=200, content={"status_code": 200, "option": response})
-    @app.delete("/options/{option_id}", response_model=dict)
+@app.delete("/options/{option_id}", response_model=dict)
 
 async def delete_option(option_id: str):
     try:
