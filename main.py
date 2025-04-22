@@ -775,3 +775,51 @@ async def get_option_by_id(option_id: str):
 
 
     return JSONResponse(status_code=200, content={"status_code": 200, "option": response})
+    @app.delete("/options/{option_id}", response_model=dict)
+
+async def delete_option(option_id: str):
+    try:
+        oid = ObjectId(option_id)
+    except:
+        raise HTTPException(status_code=400, detail="ID invalide")
+
+    option = await db.options.find_one({"_id": oid})
+    if not option:
+        raise HTTPException(status_code=404, detail="Option non trouvée")
+
+    # Supprimer l'option
+    await db.options.delete_one({"_id": oid})
+
+    # Retirer l'option de la chambre (si stockée dans la chambre)
+    await db.chambres.update_one(
+        {"_id": ObjectId(option["chambre_id"])},
+        {"$pull": {"option": option_id}}
+    )
+
+    return {"message": "Option supprimée avec succès"}
+
+@app.put("/options/{option_id}", response_model=dict)
+async def update_option(option_id: str, updated_option: Option):
+    try:
+        oid = ObjectId(option_id)
+    except:
+        raise HTTPException(status_code=400, detail="ID invalide")
+
+    existing = await db.options.find_one({"_id": oid})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Option non trouvée")
+
+    # Vérifier que la chambre liée existe
+    chambre = await db.chambres.find_one({"_id": ObjectId(updated_option.chambre_id)})
+    if not chambre:
+        raise HTTPException(status_code=404, detail="Chambre associée non trouvée")
+
+    # Mettre à jour l'option
+    await db.options.update_one(
+        {"_id": oid},
+        {"$set": updated_option.model_dump()}
+    )
+
+    return {"message": "Option mise à jour avec succès"}
+
+
